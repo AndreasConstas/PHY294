@@ -1,0 +1,224 @@
+import math as math
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+from scipy.optimize import curve_fit
+from scipy.signal import argrelextrema
+from csaps import csaps
+
+def get_counts(filepath, supplied_data, detected_data):
+    file = open(filepath, "r")
+    text = []
+    for line in file:
+        text.append(line)
+
+    text.pop(0)
+    text.pop(0)
+
+    for line in text:
+        supplied_data.append(float(line.split("	")[0]))
+        detected_data.append(float(line.split("	")[1]))
+
+supplied = []
+detected = []
+
+NUM_TRIALS = 32
+
+voltages = []
+m_voltages = []
+
+for i in range(1, NUM_TRIALS+1):
+    supplied.append([])
+    detected.append([])
+    try:
+        get_counts("Trial {}.txt".format(i), supplied[i-1], detected[i-1])
+    except:
+        get_counts("Trail {}.txt".format(i), supplied[i-1], detected[i-1])
+
+    x = supplied[i - 1]
+    y = detected[i-1]
+    x.sort()
+    remove = []
+    for j in range(len(x) - 1):
+        if(x[j] == x[j + 1]):
+            remove.append(j)
+    for j in range(len(remove)):
+        x.pop(remove[j] - j)
+        y.pop(remove[j] - j)
+
+    ys = csaps(x, y, x, smooth = 0.9)
+
+    minima = argrelextrema(ys, np.less)[0]
+    maxima = argrelextrema(ys, np.greater)[0]
+
+    voltage = []
+    for j in maxima:
+        if j > 26:
+            voltage.append(x[j])
+    voltages.append(voltage)
+
+    m_voltage = []
+    for j in minima:
+        if j > 26:
+            m_voltage.append(x[j])
+    m_voltages.append(m_voltage)
+
+    # plt.plot(x, ys)
+    if i <= 16 and i > 5:
+        plt.plot(x, y)
+plt.title('Current versus Accelerating Voltage', size = 18)
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.ylabel('Current (A)', size = 15)
+plt.xlabel('Accelerating Voltage (V)', size = 15)
+plt.savefig("Figure_4.png",bbox_inches='tight')
+plt.show()
+
+N = len(voltages)
+
+'''
+error = []
+for j in range(len(voltages[0])):
+    v_avg = 0
+    for i in range(len(voltages)):
+        v_avg = v_avg + voltages[i][j]
+    v_avg = v_avg / N
+    sum = 0
+    for i in range(len(voltages)):
+        sum = sum + (voltages[i][j] - v_avg) ** 2
+    deviation = math.sqrt(sum / (N - 1))
+    error.append(deviation / math.sqrt(N))
+print(error)
+'''
+
+deviation = []
+for j in range(len(voltages[0])):
+    v_avg = 0
+    for i in range(len(voltages)):
+        v_avg = v_avg + voltages[i][j]
+    v_avg = v_avg / N
+    sum = 0
+    for i in range(len(voltages)):
+        sum = sum + (voltages[i][j] - v_avg) ** 2
+    deviation.append(math.sqrt(sum / (N - 1)))
+print(deviation)
+
+def objective(x, m, b):
+ return m * x + b
+
+m = []
+b = []
+reduced_chi_square = []
+for i in range(len(voltages)):
+    popt, pcov = curve_fit(objective, [1, 2, 3, 4, 5], voltages[i])
+    m_t, b_t = popt
+    m.append(m_t)
+    b.append(b_t)
+    chi_square = 0
+    for j in range(5):
+        chi_square = chi_square + ((voltages[i][j] - m_t * (j + 1) - b_t) ** 2) / (0.2 ** 2)
+    reduced_chi_square.append(chi_square / (5 - 2))
+print(reduced_chi_square)
+
+m_m = []
+m_b = []
+m_reduced_chi_square = []
+for i in range(len(voltages)):
+    popt, pcov = curve_fit(objective, [1, 2, 3, 4, 5], m_voltages[i])
+    m_t, b_t = popt
+    m_m.append(m_t)
+    m_b.append(b_t)
+    chi_square = 0
+    for j in range(5):
+        chi_square = chi_square + ((m_voltages[i][j] - m_t * (j + 1) - b_t) ** 2) / (0.2 ** 2)
+    m_reduced_chi_square.append(chi_square / (5 - 2))
+print(m_reduced_chi_square)
+
+# show a sample collection of peaks
+
+m_avg = 0
+for i in range(len(m)):
+    m_avg = m_avg + m[i]
+m_avg = m_avg / N
+print(m_avg)
+sum = 0
+for i in range(len(m)):
+    sum = sum + (m[i] - m_avg) ** 2
+deviation = math.sqrt(sum / (N - 1))
+print(deviation)
+error = deviation / math.sqrt(N)
+print(error)
+
+m_m_avg = 0
+for i in range(len(m_m)):
+    m_m_avg = m_m_avg + m_m[i]
+m_m_avg = m_m_avg / N
+print(m_m_avg)
+sum = 0
+for i in range(len(m_m)):
+    sum = sum + (m_m[i] - m_m_avg) ** 2
+m_deviation = math.sqrt(sum / (N - 1))
+print(m_deviation)
+m_error = deviation / math.sqrt(N)
+print(m_error)
+
+# plot linear fit
+lx = np.linspace(0, 5, 100)
+
+for n in range(1):
+    ly = []
+    for i in range(len(lx)):
+        ly.append(b[n] + m[n] * lx[i])
+    plt.errorbar([1, 2, 3, 4, 5], voltages[n], yerr = [0.2, 0.2, 0.2, 0.2, 0.2], capsize = 2, fmt="o", ms = 5, color=(0, 0, 0.5))
+    plt.plot(lx, ly, '--', color= (0.1, 0.1, 1))
+
+for n in range(1):
+    ly = []
+    for i in range(len(lx)):
+        ly.append(m_b[n] + m_m[n] * lx[i])
+    plt.errorbar([1, 2, 3, 4, 5], m_voltages[n], yerr = [0.2, 0.2, 0.2, 0.2, 0.2], capsize = 2, fmt="o", ms = 5, color=(0.7, 0.3, 0))
+    plt.plot(lx, ly, '--', color="orange")
+
+plt.title('Accelerating Voltage versus Order of Extrema', size = 18)
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.xticks([1, 2, 3, 4, 5])
+plt.xlabel('Accelerating Voltage (V)', size = 15)
+plt.ylabel('Order of Extrema (unitless)', size = 15)
+plt.savefig("Figure_1.png",bbox_inches='tight')
+plt.show()
+
+for n in range(1):
+    residuals = []
+    for i in range(5):
+        residuals.append(voltages[n][i] - b[n] - m[n] * (i + 1))
+    plt.errorbar([1, 2, 3, 4, 5], residuals, yerr = [0.2, 0.2, 0.2, 0.2, 0.2], capsize = 2, fmt="o", ms = 5, color = "blue")
+
+for n in range(1):
+    residuals = []
+    for i in range(5):
+        residuals.append(m_voltages[n][i] - m_b[n] - m_m[n] * (i + 1))
+    plt.errorbar([1.01, 2.01, 3.01, 4.01, 5.01], residuals, yerr = [0.2, 0.2, 0.2, 0.2, 0.2], capsize = 2, fmt="o", ms = 5, color = "orange")
+
+plt.title('Accelerating Voltage Residual versus Order of Extrema', size = 18)
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.xticks([1, 2, 3, 4, 5])
+plt.ylabel('Residual of Accelerating Voltage (V)', size = 15)
+plt.xlabel('Order of Extrema (unitless)', size = 15)
+plt.savefig("Figure_2.png",bbox_inches='tight')
+plt.show()
+
+for n in range(32):
+    residuals = []
+    for i in range(5):
+        residuals.append(voltages[n][i] - b[n] - m[n] * (i + 1))
+    plt.errorbar([1, 2, 3, 4, 5], residuals, yerr = [0.2, 0.2, 0.2, 0.2, 0.2], capsize = 2, fmt="o", ms = 5)
+plt.title('Accelerating Voltage Residual versus Order of Maxima', size = 18)
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.xticks([1, 2, 3, 4, 5])
+plt.ylabel('Residual of Accelerating Voltage (V)', size = 15)
+plt.xlabel('Order of Maxima (unitless)', size = 15)
+plt.savefig("Figure_3.png",bbox_inches='tight')
+plt.show()
