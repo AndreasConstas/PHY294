@@ -1,0 +1,123 @@
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+import math
+import numpy as np
+
+k = 0.0005167
+
+V_1 = [116, 146, 178, 209, 239, 269]
+I_1 = 1.19
+D_1 = [77, 89, 99, 106, 113, 120] # [mm]
+
+R_1 = [d / 2000 for d in D_1]
+R_1_i = [1 / r for r in R_1]
+
+V_2 = 115
+I_2 = [0.96, 1.07, 1.11, 1.21, 1.27, 1.35]
+D_2 = [109, 101, 97, 88, 85, 79] # [mm]
+
+R_2 = [d / 2000 for d in D_2]
+R_2_i = [1 / r for r in R_2]
+
+B_c = [k * i for i in I_2]
+
+def linear(x, m, b):
+    return m * x + b
+
+popt, pcov = curve_fit(linear, B_c, R_2_i)
+m, b = popt
+print(m)
+print(b)
+print(pcov)
+
+y_err = [0.001 / (r_2 ** 2) for r_2 in R_2]
+plt.errorbar(B_c, R_2_i, xerr = [k * 0.01, k * 0.01, k * 0.01, k * 0.01, k * 0.01, k * 0.01], yerr = y_err, capsize = 2, fmt="o", ms = 4)
+x_l = np.linspace(0.0004, 0.0008, 100)
+y_l = [x * m + b for x in x_l]
+plt.plot(x_l, y_l)
+
+plt.title('Magnetic Field of Coil versus 1/r', size = 18)
+plt.xticks(fontsize = 9)
+plt.yticks(fontsize = 10)
+plt.xticks([0.0004, 0.0005, 0.0006, 0.0007, 0.0008])
+plt.xlabel('Manetic Field of Coil [T]', size = 15)
+plt.ylabel('1/r [1/m]', size = 15)
+
+plt.savefig("Figure_1.png",bbox_inches='tight')
+plt.show()
+
+
+diff = []
+chi_square = 0
+for n in range(len(B_c)):
+    diff.append(R_2_i[n] - m * B_c[n] - b)
+    chi_square = chi_square + ((diff[n] / y_err[n]) ** 2)
+reduced_chi_square = chi_square / (6 - 2)
+print(reduced_chi_square)
+
+plt.errorbar(B_c, diff, xerr = [k * 0.01, k * 0.01, k * 0.01, k * 0.01, k * 0.01, k * 0.01], yerr = y_err, capsize = 2, fmt="o", ms = 4)
+
+plt.title('Magnetic Field of Coil versus Residual of 1/r', size = 18)
+plt.xticks(fontsize = 9)
+plt.yticks(fontsize = 10)
+plt.xticks([0.0004, 0.0005, 0.0006, 0.0007, 0.0008])
+plt.xlabel('Manetic Field of Coil [T]', size = 15)
+plt.ylabel('Residual of 1/r [1/m]', size = 15)
+plt.axhline(y=0, color='k')
+
+plt.savefig("Figure_2.png",bbox_inches='tight')
+plt.show()
+
+B_e = b / m
+I_0 = B_e / k
+
+print("dB_e = ")
+print(B_e * math.sqrt((2000 / 35000) ** 2 + (0.9 / 0.7) ** 2))
+
+ratio = []
+for n in range(len(V_1)):
+    ratio.append((math.sqrt(V_1[n]) * R_1_i[n] / (I_1 - I_0) / k) ** 2)
+    ratio.append((math.sqrt(V_2) * R_2_i[n] / (I_2[n] - I_0) / k) ** 2)
+
+final = np.mean(ratio)
+
+s_d = 0
+for n in range(len(V_1)):
+    s_d = s_d + (((math.sqrt(V_1[n]) * R_1_i[n] / (I_1 - I_0) / k) ** 2) - final) ** 2
+    s_d = s_d + (((math.sqrt(V_2) * R_2_i[n] / (I_2[n] - I_0) / k) ** 2) - final) ** 2
+s_d = s_d / (2 * len(V_1) - 1)
+s_d = math.sqrt(s_d)
+
+print(final)
+print(s_d)
+'''
+x = []
+y = []
+for n in range(5):
+    x.append((I_1 - I_0) * math.sqrt(R_1[n]))
+    x.append((I_2[n] - I_0) * math.sqrt(R_2[n]))
+    y.append(math.sqrt(V_1[n] * R_1_i[n]))
+    y.append(math.sqrt(V_2 * R_2_i[n]))
+
+    x.append((I_1 - I_0) / math.sqrt(V_1[n]) )
+    x.append((I_2[n] - I_0) / math.sqrt(V_2))
+    y.append(R_1_i[n])
+    y.append(R_2_i[n])
+
+plt.scatter(x, y)
+plt.show()
+
+def linear_pure(x, m):
+    return m * x
+
+popt, _ = curve_fit(linear, x, y)
+m, b = popt
+
+print(b)
+print((m / k) ** 2)
+
+popt, _ = curve_fit(linear_pure, x, y)
+m, = popt
+
+print((m / k) ** 2)
+'''
